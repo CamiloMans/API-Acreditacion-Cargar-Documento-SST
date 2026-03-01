@@ -1,0 +1,44 @@
+# Git / local metadata
+.git
+.gitignore
+.vscode
+.idea
+
+# Python cache / virtualenvs
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+env/
+ENV/
+
+# Local env / secrets (inject via env_file + bind mounts instead)
+.env
+.env.*
+!.env.example
+client_secret.json
+token.json
+
+# Tests / notebooks / local artifacts
+tests/
+*.ipynb
+.ipynb_checkpoints/
+htmlcov/
+.coverage
+server.out.log
+server.err.log
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+build/
+dist/
+*.egg-info/

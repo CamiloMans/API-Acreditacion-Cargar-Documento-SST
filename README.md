@@ -1,0 +1,90 @@
+# API Documentos Drive
+
+API FastAPI para subir documentos PDF a Google Drive desde un payload base64.
+
+## Resumen
+
+La API expone un endpoint publico `POST /documentos/subir` que:
+
+1. Recibe `documento_base64`, `nombre_documento`, `fecha_inicio`, `folder_id`.
+2. Valida que `nombre_documento` termine en `.pdf`.
+3. Valida que `fecha_inicio` sea ISO parseable.
+4. Limita el tamano del archivo a 25 MB.
+5. Valida que `folder_id` cuelgue de la carpeta permitida:
+   `1n8njw20WyC-uylqiMOZULj5tnDZjRjjA`.
+6. Genera nombre final: `YYYYMMDD_nombredocumento.pdf`.
+7. Si el nombre ya existe, crea sufijo incremental (`_1`, `_2`, ...).
+8. Sube el PDF y devuelve metadatos + links de Drive.
+
+## Requisitos
+
+- Python 3.11
+- Variables de entorno:
+
+```env
+GOOGLE_CLIENT_SECRET_FILE=client_secret.json
+GOOGLE_TOKEN_FILE=token.json
+ENVIRONMENT=development
+LOG_LEVEL=INFO
+CORS_ORIGINS=https://myma-acreditacion.onrender.com,http://localhost:3000,http://127.0.0.1:3000
+```
+
+## Ejecutar local
+
+```bash
+python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+- Swagger: `http://localhost:8000/docs`
+- Health: `http://localhost:8000/health`
+
+## Endpoint principal
+
+### `POST /documentos/subir`
+
+#### Request
+
+```json
+{
+  "documento_base64": "JVBERi0xLjQKJ...",
+  "nombre_documento": "Contrato SST.pdf",
+  "fecha_inicio": "2026-03-01",
+  "folder_id": "1n8njw20WyC-uylqiMOZULj5tnDZjRjjA"
+}
+```
+
+#### Response (ejemplo)
+
+```json
+{
+  "ok": true,
+  "file_id": "1abcXYZ...",
+  "file_name": "20260301_contrato_sst.pdf",
+  "folder_id": "1n8njw20WyC-uylqiMOZULj5tnDZjRjjA",
+  "web_view_link": "https://drive.google.com/file/d/1abcXYZ.../view",
+  "web_content_link": "https://drive.google.com/uc?id=1abcXYZ...&export=download",
+  "size_bytes": 182344,
+  "created_time": "2026-03-01T14:08:07.000Z"
+}
+```
+
+## Errores esperados
+
+- `422`: base64 invalido, fecha invalida, nombre sin `.pdf` o `folder_id` invalido.
+- `403`: `folder_id` fuera del arbol permitido o sin permisos.
+- `404`: carpeta no existe/no accesible.
+- `413`: archivo supera 25 MB.
+- `502`: fallo en Google Drive API al subir.
+
+## Estructura
+
+```text
+app/
+  main.py
+  config.py
+  models.py
+  routers/
+    documentos.py
+  services/
+    drive_service.py
+```
