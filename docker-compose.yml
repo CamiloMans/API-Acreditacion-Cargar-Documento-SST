@@ -12,7 +12,7 @@ services:
     env_file:
       - .env
     ports:
-      - "127.0.0.1:8002:8000"
+      - "127.0.0.1:8003:8000"
     volumes:
       - ./client_secret.json:/app/client_secret.json:ro
       - ./token.json:/app/token.json
