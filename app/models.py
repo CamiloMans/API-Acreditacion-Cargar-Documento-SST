@@ -27,6 +27,7 @@ def parse_iso_datetime(raw_value: str) -> datetime:
 class SubirDocumentoRequest(BaseModel):
     """Payload for uploading a PDF document to Google Drive."""
 
+    id_registro_sst: int = Field(..., gt=0, description="ID del registro SST a actualizar")
     documento_base64: str = Field(..., description="Documento PDF en base64")
     nombre_documento: str = Field(..., description="Nombre del documento PDF")
     fecha_inicio: str = Field(..., description="Fecha ISO para construir YYYYMMDD")
@@ -69,9 +70,12 @@ class SubirDocumentoResponse(BaseModel):
     """Response returned after uploading a PDF document."""
 
     ok: bool = True
+    id_registro_sst: int
     file_id: str
     file_name: str
     folder_id: str
+    link: str
+    db_actualizado: bool
     web_view_link: Optional[str] = None
     web_content_link: Optional[str] = None
     size_bytes: Optional[int] = None

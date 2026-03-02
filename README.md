@@ -6,7 +6,7 @@ API FastAPI para subir documentos PDF a Google Drive desde un payload base64.
 
 La API expone un endpoint publico `POST /documentos/subir` que:
 
-1. Recibe `documento_base64`, `nombre_documento`, `fecha_inicio`, `folder_id`.
+1. Recibe `id_registro_sst`, `documento_base64`, `nombre_documento`, `fecha_inicio`, `folder_id`.
 2. Valida que `nombre_documento` termine en `.pdf`.
 3. Valida que `fecha_inicio` sea ISO parseable.
 4. Limita el tamano del archivo a 200 MB.
@@ -15,6 +15,10 @@ La API expone un endpoint publico `POST /documentos/subir` que:
 6. Genera nombre final: `YYYYMMDD_nombredocumento.pdf`.
 7. Si el nombre ya existe, crea sufijo incremental (`_1`, `_2`, ...).
 8. Sube el PDF y devuelve metadatos + links de Drive.
+9. Actualiza en Supabase la tabla `brg_acreditacion_persona_requerimiento_sst`:
+   - `link`: `https://drive.google.com/file/d/{file_id}/view?usp=drive_link`
+   - `drive_pdf_id`: `{file_id}`
+   por `id_registro_sst`.
 
 ## Requisitos
 
@@ -24,6 +28,8 @@ La API expone un endpoint publico `POST /documentos/subir` que:
 ```env
 GOOGLE_CLIENT_SECRET_FILE=client_secret.json
 GOOGLE_TOKEN_FILE=token.json
+SUPABASE_URL=https://tu-project-id.supabase.co
+SUPABASE_KEY=REEMPLAZAR_POR_SUPABASE_SERVICE_ROLE_KEY
 ENVIRONMENT=development
 LOG_LEVEL=INFO
 CORS_ORIGINS=https://myma-acreditacion.onrender.com,http://localhost:3000,http://127.0.0.1:3000
@@ -46,6 +52,7 @@ python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 ```json
 {
+  "id_registro_sst": 12345,
   "documento_base64": "JVBERi0xLjQKJ...",
   "nombre_documento": "Contrato SST.pdf",
   "fecha_inicio": "2026-03-01",
@@ -58,9 +65,12 @@ python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```json
 {
   "ok": true,
+  "id_registro_sst": 12345,
   "file_id": "1abcXYZ...",
   "file_name": "20260301_contrato_sst.pdf",
   "folder_id": "1n8njw20WyC-uylqiMOZULj5tnDZjRjjA",
+  "link": "https://drive.google.com/file/d/1abcXYZ.../view?usp=drive_link",
+  "db_actualizado": true,
   "web_view_link": "https://drive.google.com/file/d/1abcXYZ.../view",
   "web_content_link": "https://drive.google.com/uc?id=1abcXYZ...&export=download",
   "size_bytes": 182344,

@@ -9,6 +9,10 @@ services:
         sync: false
       - key: GOOGLE_TOKEN_FILE
         sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_KEY
+        sync: false
       - key: ENVIRONMENT
         value: production
       - key: LOG_LEVEL

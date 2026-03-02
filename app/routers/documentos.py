@@ -15,6 +15,11 @@ from app.services.drive_service import (
     DriveUploadError,
     drive_service,
 )
+from app.services.supabase_service import (
+    SupabaseConfigError,
+    SupabaseOperationError,
+    supabase_service,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -67,12 +72,28 @@ async def subir_documento(request: SubirDocumentoRequest):
             final_name=final_name,
             file_bytes=file_bytes,
         )
+        file_id = uploaded["id"]
+        link = f"https://drive.google.com/file/d/{file_id}/view?usp=drive_link"
+
+        actualizado = supabase_service.actualizar_documento_sst(
+            id_registro_sst=request.id_registro_sst,
+            link=link,
+            drive_pdf_id=file_id,
+        )
+        if not actualizado:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"No se encontro registro SST con id_registro_sst={request.id_registro_sst}",
+            )
 
         return SubirDocumentoResponse(
             ok=True,
-            file_id=uploaded["id"],
+            id_registro_sst=request.id_registro_sst,
+            file_id=file_id,
             file_name=uploaded["name"],
             folder_id=request.folder_id,
+            link=link,
+            db_actualizado=True,
             web_view_link=uploaded.get("webViewLink"),
             web_content_link=uploaded.get("webContentLink"),
             size_bytes=int(uploaded["size"]) if uploaded.get("size") is not None else None,
@@ -85,6 +106,10 @@ async def subir_documento(request: SubirDocumentoRequest):
     except DrivePermissionError as exc:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
     except DriveUploadError as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+    except SupabaseConfigError as exc:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc
+    except SupabaseOperationError as exc:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
     except DriveApiError as exc:
         logger.exception("Drive API error while uploading document")

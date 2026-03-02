@@ -7,6 +7,8 @@ class Settings(BaseSettings):
 
     GOOGLE_CLIENT_SECRET_FILE: str = "client_secret.json"
     GOOGLE_TOKEN_FILE: str = "token.json"
+    SUPABASE_URL: str = ""
+    SUPABASE_KEY: str = ""
 
     ENVIRONMENT: str = "development"
     LOG_LEVEL: str = "INFO"
