@@ -7,19 +7,20 @@ API FastAPI para subir documentos PDF a Google Drive desde un payload base64.
 La API expone un endpoint publico `POST /documentos/subir` que:
 
 1. Recibe `id_registro_sst`, `documento_base64`, `nombre_documento`, `fecha_inicio`,
-   `folder_id`, `nombre_persona`, `rut_persona`.
+   `folder_id` (opcional), `nombre_persona`, `rut_persona`.
 2. Valida que `nombre_documento` termine en `.pdf`.
 3. Valida que `fecha_inicio` sea ISO parseable.
 4. Limita el tamano del archivo a 200 MB.
-5. Valida que `folder_id` cuelgue de la carpeta permitida:
+5. Si `folder_id` es null/vacio, usa la carpeta root permitida como base.
+6. Valida que la carpeta base cuelgue de la carpeta permitida:
    `1n8njw20WyC-uylqiMOZULj5tnDZjRjjA`.
-6. Genera nombre final: `YYYYMMDD_nombredocumento.pdf`.
-7. Si el nombre ya existe, crea sufijo incremental (`_1`, `_2`, ...).
-8. Busca carpeta de persona por nombre bajo `folder_id`.
-9. Si no existe, crea carpeta con `nombre_persona`.
-10. Sube el PDF dentro de la carpeta de persona y devuelve metadatos + links de Drive.
-11. Actualiza `dim_core_persona.sst_drive_folder_id` con el `folder_id` de destino usando `rut_persona`.
-12. Actualiza en Supabase la tabla `brg_acreditacion_persona_requerimiento_sst`:
+7. Genera nombre final: `YYYYMMDD_nombredocumento.pdf`.
+8. Si el nombre ya existe, crea sufijo incremental (`_1`, `_2`, ...).
+9. Busca carpeta de persona por nombre bajo la carpeta base.
+10. Si no existe, crea carpeta con `nombre_persona`.
+11. Sube el PDF dentro de la carpeta de persona y devuelve metadatos + links de Drive.
+12. Actualiza `dim_core_persona.sst_drive_folder_id` con el `folder_id` de destino usando `rut_persona`.
+13. Actualiza en Supabase la tabla `brg_acreditacion_persona_requerimiento_sst`:
    - `link`: `https://drive.google.com/file/d/{file_id}/view?usp=drive_link`
    - `drive_pdf_id`: `{file_id}`
    por `id_registro_sst`.
@@ -60,7 +61,7 @@ python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
   "documento_base64": "JVBERi0xLjQKJ...",
   "nombre_documento": "Contrato SST.pdf",
   "fecha_inicio": "2026-03-01",
-  "folder_id": "1n8njw20WyC-uylqiMOZULj5tnDZjRjjA",
+  "folder_id": null,
   "nombre_persona": "Juan Perez",
   "rut_persona": "12.345.678-9"
 }

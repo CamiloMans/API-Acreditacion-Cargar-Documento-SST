@@ -31,7 +31,12 @@ class SubirDocumentoRequest(BaseModel):
     documento_base64: str = Field(..., description="Documento PDF en base64")
     nombre_documento: str = Field(..., description="Nombre del documento PDF")
     fecha_inicio: str = Field(..., description="Fecha ISO para construir YYYYMMDD")
-    folder_id: str = Field(..., description="ID de carpeta de destino en Drive")
+    folder_id: Optional[str] = Field(
+        None,
+        description=(
+            "ID de carpeta base en Drive. Si es null o vacio, se usa la carpeta root permitida."
+        ),
+    )
     nombre_persona: str = Field(..., description="Nombre de la persona para la carpeta SST")
     rut_persona: str = Field(..., description="RUT de la persona para actualizar dim_core_persona")
 
@@ -61,11 +66,11 @@ class SubirDocumentoRequest(BaseModel):
 
     @field_validator("folder_id")
     @classmethod
-    def validate_folder_id(cls, value: str) -> str:
+    def validate_folder_id(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
         trimmed = value.strip()
-        if not trimmed:
-            raise ValueError("folder_id no puede ser vacio")
-        return trimmed
+        return trimmed or None
 
     @field_validator("nombre_persona")
     @classmethod

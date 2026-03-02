@@ -56,14 +56,16 @@ async def subir_documento(request: SubirDocumentoRequest):
         )
 
     try:
-        if not drive_service.is_descendant_of_root(request.folder_id, ALLOWED_ROOT_FOLDER_ID):
+        base_folder_id = request.folder_id or ALLOWED_ROOT_FOLDER_ID
+
+        if not drive_service.is_descendant_of_root(base_folder_id, ALLOWED_ROOT_FOLDER_ID):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="folder_id fuera de la carpeta permitida",
             )
 
         folder_id_destino, carpeta_persona_creada = drive_service.resolve_or_create_person_folder(
-            base_folder_id=request.folder_id,
+            base_folder_id=base_folder_id,
             nombre_persona=request.nombre_persona,
         )
 
@@ -107,7 +109,7 @@ async def subir_documento(request: SubirDocumentoRequest):
             id_registro_sst=request.id_registro_sst,
             file_id=file_id,
             file_name=uploaded["name"],
-            folder_id=request.folder_id,
+            folder_id=base_folder_id,
             folder_id_destino=folder_id_destino,
             carpeta_persona_creada=carpeta_persona_creada,
             persona_actualizada=True,
