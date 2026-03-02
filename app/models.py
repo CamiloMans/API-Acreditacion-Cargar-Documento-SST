@@ -32,6 +32,8 @@ class SubirDocumentoRequest(BaseModel):
     nombre_documento: str = Field(..., description="Nombre del documento PDF")
     fecha_inicio: str = Field(..., description="Fecha ISO para construir YYYYMMDD")
     folder_id: str = Field(..., description="ID de carpeta de destino en Drive")
+    nombre_persona: str = Field(..., description="Nombre de la persona para la carpeta SST")
+    rut_persona: str = Field(..., description="RUT de la persona para actualizar dim_core_persona")
 
     @field_validator("documento_base64")
     @classmethod
@@ -65,6 +67,22 @@ class SubirDocumentoRequest(BaseModel):
             raise ValueError("folder_id no puede ser vacio")
         return trimmed
 
+    @field_validator("nombre_persona")
+    @classmethod
+    def validate_nombre_persona(cls, value: str) -> str:
+        trimmed = value.strip()
+        if not trimmed:
+            raise ValueError("nombre_persona no puede ser vacio")
+        return trimmed
+
+    @field_validator("rut_persona")
+    @classmethod
+    def validate_rut_persona(cls, value: str) -> str:
+        trimmed = value.strip()
+        if not trimmed:
+            raise ValueError("rut_persona no puede ser vacio")
+        return trimmed
+
 
 class SubirDocumentoResponse(BaseModel):
     """Response returned after uploading a PDF document."""
@@ -74,6 +92,9 @@ class SubirDocumentoResponse(BaseModel):
     file_id: str
     file_name: str
     folder_id: str
+    folder_id_destino: str
+    carpeta_persona_creada: bool
+    persona_actualizada: bool
     link: str
     db_actualizado: bool
     web_view_link: Optional[str] = None

@@ -8,6 +8,7 @@ from app.config import settings
 logger = logging.getLogger(__name__)
 
 TABLE_SST = "brg_acreditacion_persona_requerimiento_sst"
+TABLE_PERSONA = "dim_core_persona"
 
 
 class SupabaseError(Exception):
@@ -82,6 +83,42 @@ class SupabaseService:
         except Exception as exc:
             raise SupabaseOperationError(
                 "Error actualizando registro SST en Supabase"
+            ) from exc
+
+    def _normalizar_rut(self, rut: str) -> str:
+        return rut.replace(".", "").replace(" ", "").upper()
+
+    def actualizar_sst_drive_folder_persona(
+        self,
+        rut_persona: str,
+        folder_id: str,
+    ) -> bool:
+        """Update dim_core_persona.sst_drive_folder_id using person RUT."""
+        client = self._require_client()
+        payload = {"sst_drive_folder_id": folder_id}
+        rut_raw = rut_persona.strip()
+        rut_normalizado = self._normalizar_rut(rut_raw)
+        rut_candidates = [rut_raw]
+        if rut_normalizado != rut_raw:
+            rut_candidates.append(rut_normalizado)
+
+        try:
+            for column in ("rut", "rut_persona"):
+                for rut_value in rut_candidates:
+                    response = (
+                        client.table(TABLE_PERSONA)
+                        .update(payload)
+                        .eq(column, rut_value)
+                        .execute()
+                    )
+                    if response.data and len(response.data) > 0:
+                        return True
+            return False
+        except SupabaseError:
+            raise
+        except Exception as exc:
+            raise SupabaseOperationError(
+                "Error actualizando sst_drive_folder_id en dim_core_persona"
             ) from exc
 
 

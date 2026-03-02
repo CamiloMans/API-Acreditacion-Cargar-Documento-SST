@@ -10,6 +10,7 @@ from app.services.drive_service import (
     ALLOWED_ROOT_FOLDER_ID,
     DriveApiError,
     DriveFileNotFoundError,
+    DriveFolderOperationError,
     DriveInvalidFolderError,
     DrivePermissionError,
     DriveUploadError,
@@ -61,14 +62,19 @@ async def subir_documento(request: SubirDocumentoRequest):
                 detail="folder_id fuera de la carpeta permitida",
             )
 
+        folder_id_destino, carpeta_persona_creada = drive_service.resolve_or_create_person_folder(
+            base_folder_id=request.folder_id,
+            nombre_persona=request.nombre_persona,
+        )
+
         candidate_name = drive_service.build_final_filename(
             request.fecha_inicio,
             request.nombre_documento,
         )
-        final_name = drive_service.resolve_non_colliding_name(request.folder_id, candidate_name)
+        final_name = drive_service.resolve_non_colliding_name(folder_id_destino, candidate_name)
 
         uploaded = drive_service.upload_pdf_bytes(
-            folder_id=request.folder_id,
+            folder_id=folder_id_destino,
             final_name=final_name,
             file_bytes=file_bytes,
         )
@@ -86,12 +92,25 @@ async def subir_documento(request: SubirDocumentoRequest):
                 detail=f"No se encontro registro SST con id_registro_sst={request.id_registro_sst}",
             )
 
+        persona_actualizada = supabase_service.actualizar_sst_drive_folder_persona(
+            rut_persona=request.rut_persona,
+            folder_id=folder_id_destino,
+        )
+        if not persona_actualizada:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"No se encontro persona con rut={request.rut_persona} en dim_core_persona",
+            )
+
         return SubirDocumentoResponse(
             ok=True,
             id_registro_sst=request.id_registro_sst,
             file_id=file_id,
             file_name=uploaded["name"],
             folder_id=request.folder_id,
+            folder_id_destino=folder_id_destino,
+            carpeta_persona_creada=carpeta_persona_creada,
+            persona_actualizada=True,
             link=link,
             db_actualizado=True,
             web_view_link=uploaded.get("webViewLink"),
@@ -105,6 +124,8 @@ async def subir_documento(request: SubirDocumentoRequest):
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
     except DrivePermissionError as exc:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
+    except DriveFolderOperationError as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
     except DriveUploadError as exc:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
     except SupabaseConfigError as exc:

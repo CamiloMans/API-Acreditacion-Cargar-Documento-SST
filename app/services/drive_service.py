@@ -44,6 +44,10 @@ class DriveUploadError(DriveApiError):
     """Raised when upload operation fails."""
 
 
+class DriveFolderOperationError(DriveApiError):
+    """Raised when folder lookup/create operation fails."""
+
+
 class DriveService:
     """Service for Google Drive interactions."""
 
@@ -147,6 +151,86 @@ class DriveService:
             to_visit.extend(parents)
 
         return False
+
+    def _normalize_name(self, value: str) -> str:
+        return re.sub(r"\s+", " ", value.strip().lower())
+
+    def find_subfolder_by_name(self, parent_folder_id: str, folder_name: str) -> str | None:
+        """Find a direct child folder by exact name under parent_folder_id."""
+        service = self.get_service()
+        escaped = folder_name.replace("'", "\\'")
+        query = (
+            f"name = '{escaped}' and "
+            f"'{parent_folder_id}' in parents and "
+            f"mimeType = '{FOLDER_MIME_TYPE}' and trashed = false"
+        )
+        try:
+            response = self._execute_with_retry(
+                service.files().list(
+                    q=query,
+                    spaces="drive",
+                    fields="files(id,name)",
+                    pageSize=1,
+                    supportsAllDrives=True,
+                    includeItemsFromAllDrives=True,
+                )
+            )
+            files = response.get("files", [])
+            if files:
+                return files[0]["id"]
+            return None
+        except HttpError as error:
+            self._handle_http_error(error, f"No se pudo buscar carpeta hija en: {parent_folder_id}")
+
+    def create_subfolder(self, parent_folder_id: str, folder_name: str) -> str:
+        """Create a folder under parent_folder_id and return its ID."""
+        service = self.get_service()
+        metadata = {
+            "name": folder_name,
+            "mimeType": FOLDER_MIME_TYPE,
+            "parents": [parent_folder_id],
+        }
+        try:
+            created = self._execute_with_retry(
+                service.files().create(
+                    body=metadata,
+                    fields="id,name,parents",
+                    supportsAllDrives=True,
+                )
+            )
+            return created["id"]
+        except HttpError as error:
+            status = getattr(error.resp, "status", None)
+            if status == 404:
+                raise DriveFileNotFoundError(
+                    f"No existe la carpeta base para crear subcarpeta: {parent_folder_id}"
+                ) from error
+            if status in [401, 403]:
+                raise DrivePermissionError(
+                    "Sin permisos para crear carpeta en el destino indicado"
+                ) from error
+            raise DriveFolderOperationError(f"No se pudo crear carpeta en Drive (status={status})") from error
+
+    def resolve_or_create_person_folder(self, base_folder_id: str, nombre_persona: str) -> tuple[str, bool]:
+        """
+        Resolve the target person folder under base_folder_id, creating it if missing.
+
+        Returns:
+            (folder_id_destino, carpeta_creada)
+        """
+        base_meta = self.get_file_metadata(base_folder_id)
+        if base_meta.get("mimeType") != FOLDER_MIME_TYPE:
+            raise DriveInvalidFolderError("folder_id debe corresponder a una carpeta")
+
+        if self._normalize_name(base_meta.get("name", "")) == self._normalize_name(nombre_persona):
+            return base_folder_id, False
+
+        existing = self.find_subfolder_by_name(base_folder_id, nombre_persona)
+        if existing:
+            return existing, False
+
+        created_id = self.create_subfolder(base_folder_id, nombre_persona)
+        return created_id, True
 
     def build_final_filename(self, fecha_inicio: str, nombre_documento: str) -> str:
         """Build final filename in format YYYYMMDD_documento.pdf."""
