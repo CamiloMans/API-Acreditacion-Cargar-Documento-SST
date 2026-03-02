@@ -57,24 +57,17 @@ class SupabaseService:
         }
 
         try:
-            # Primary expected key: id
-            response = (
-                client.table(TABLE_SST)
-                .update(payload)
-                .eq("id", id_registro_sst)
-                .execute()
-            )
+            response = self._update_sst_by_column(client, "id", id_registro_sst, payload)
             if response.data and len(response.data) > 0:
                 return True
 
-            # Fallback in case schema uses id_registro_sst as PK/column.
-            fallback_response = (
-                client.table(TABLE_SST)
-                .update(payload)
-                .eq("id_registro_sst", id_registro_sst)
-                .execute()
+            fallback_response = self._safe_update_sst_by_fallback_column(
+                client,
+                "id_registro_sst",
+                id_registro_sst,
+                payload,
             )
-            if fallback_response.data and len(fallback_response.data) > 0:
+            if fallback_response is not None and fallback_response.data and len(fallback_response.data) > 0:
                 return True
 
             return False
@@ -91,7 +84,7 @@ class SupabaseService:
         try:
             response = (
                 client.table(TABLE_SST)
-                .select("id,id_registro_sst,drive_pdf_id,link")
+                .select("id,drive_pdf_id,link")
                 .eq("id", id_registro_sst)
                 .limit(1)
                 .execute()
@@ -99,12 +92,10 @@ class SupabaseService:
             if response.data and len(response.data) > 0:
                 return response.data[0]
 
-            fallback_response = (
-                client.table(TABLE_SST)
-                .select("id,id_registro_sst,drive_pdf_id,link")
-                .eq("id_registro_sst", id_registro_sst)
-                .limit(1)
-                .execute()
+            fallback_response = self._safe_select_sst_by_fallback_column(
+                client,
+                "id_registro_sst",
+                id_registro_sst,
             )
             if fallback_response.data and len(fallback_response.data) > 0:
                 return fallback_response.data[0]
@@ -125,22 +116,17 @@ class SupabaseService:
             "link": None,
         }
         try:
-            response = (
-                client.table(TABLE_SST)
-                .update(payload)
-                .eq("id", id_registro_sst)
-                .execute()
-            )
+            response = self._update_sst_by_column(client, "id", id_registro_sst, payload)
             if response.data and len(response.data) > 0:
                 return True
 
-            fallback_response = (
-                client.table(TABLE_SST)
-                .update(payload)
-                .eq("id_registro_sst", id_registro_sst)
-                .execute()
+            fallback_response = self._safe_update_sst_by_fallback_column(
+                client,
+                "id_registro_sst",
+                id_registro_sst,
+                payload,
             )
-            if fallback_response.data and len(fallback_response.data) > 0:
+            if fallback_response is not None and fallback_response.data and len(fallback_response.data) > 0:
                 return True
 
             return False
@@ -150,6 +136,51 @@ class SupabaseService:
             raise SupabaseOperationError(
                 "Error limpiando documento SST en Supabase"
             ) from exc
+
+    def _update_sst_by_column(self, client: Client, column: str, value: int, payload: dict):
+        return (
+            client.table(TABLE_SST)
+            .update(payload)
+            .eq(column, value)
+            .execute()
+        )
+
+    def _safe_update_sst_by_fallback_column(
+        self,
+        client: Client,
+        column: str,
+        value: int,
+        payload: dict,
+    ):
+        try:
+            return self._update_sst_by_column(client, column, value, payload)
+        except Exception as exc:
+            logger.warning(
+                "Fallback update por columna '%s' no disponible o fallo: %s",
+                column,
+                exc,
+            )
+            return None
+
+    def _safe_select_sst_by_fallback_column(self, client: Client, column: str, value: int):
+        try:
+            return (
+                client.table(TABLE_SST)
+                .select("id,drive_pdf_id,link")
+                .eq(column, value)
+                .limit(1)
+                .execute()
+            )
+        except Exception as exc:
+            logger.warning(
+                "Fallback select por columna '%s' no disponible o fallo: %s",
+                column,
+                exc,
+            )
+            class _EmptyResponse:
+                data = []
+
+            return _EmptyResponse()
 
     def _normalizar_rut(self, rut: str) -> str:
         return rut.replace(".", "").replace(" ", "").upper()
@@ -171,12 +202,20 @@ class SupabaseService:
         try:
             for column in ("rut", "rut_persona"):
                 for rut_value in rut_candidates:
-                    response = (
-                        client.table(TABLE_PERSONA)
-                        .update(payload)
-                        .eq(column, rut_value)
-                        .execute()
-                    )
+                    try:
+                        response = (
+                            client.table(TABLE_PERSONA)
+                            .update(payload)
+                            .eq(column, rut_value)
+                            .execute()
+                        )
+                    except Exception as exc:
+                        logger.warning(
+                            "Update dim_core_persona por columna '%s' fallo: %s",
+                            column,
+                            exc,
+                        )
+                        continue
                     if response.data and len(response.data) > 0:
                         return True
             return False
