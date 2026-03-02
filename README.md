@@ -19,8 +19,12 @@ La API expone un endpoint publico `POST /documentos/subir` que:
 9. Busca carpeta de persona por nombre bajo la carpeta base.
 10. Si no existe, crea carpeta con `nombre_persona`.
 11. Sube el PDF dentro de la carpeta de persona y devuelve metadatos + links de Drive.
-12. Actualiza `dim_core_persona.sst_drive_folder_id` con el `folder_id` de destino usando `rut_persona`.
-13. Actualiza en Supabase la tabla `brg_acreditacion_persona_requerimiento_sst`:
+12. Si el registro SST ya tiene `drive_pdf_id`, elimina ese archivo en Drive antes de subir el nuevo.
+    - si eliminar devuelve 404, continua el flujo.
+    - si eliminar falla por otro motivo, responde error y no sube el nuevo archivo.
+13. Si falla la subida tras borrar el previo, limpia `drive_pdf_id` y `link` en SST (`null`).
+14. Actualiza `dim_core_persona.sst_drive_folder_id` con el `folder_id` de destino usando `rut_persona`.
+15. Actualiza en Supabase la tabla `brg_acreditacion_persona_requerimiento_sst`:
    - `link`: `https://drive.google.com/file/d/{file_id}/view?usp=drive_link`
    - `drive_pdf_id`: `{file_id}`
    por `id_registro_sst`.
@@ -94,6 +98,7 @@ python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 - `403`: `folder_id` fuera del arbol permitido o sin permisos.
 - `404`: carpeta no existe/no accesible.
 - `413`: archivo supera 200 MB.
+- `502`: fallo al eliminar archivo previo en Drive.
 - `502`: fallo en Google Drive API al subir.
 
 ## Estructura

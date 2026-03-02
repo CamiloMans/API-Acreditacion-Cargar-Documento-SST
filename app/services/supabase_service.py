@@ -85,6 +85,72 @@ class SupabaseService:
                 "Error actualizando registro SST en Supabase"
             ) from exc
 
+    def obtener_registro_sst(self, id_registro_sst: int) -> dict | None:
+        """Get SST record by id with fallback to id_registro_sst."""
+        client = self._require_client()
+        try:
+            response = (
+                client.table(TABLE_SST)
+                .select("id,id_registro_sst,drive_pdf_id,link")
+                .eq("id", id_registro_sst)
+                .limit(1)
+                .execute()
+            )
+            if response.data and len(response.data) > 0:
+                return response.data[0]
+
+            fallback_response = (
+                client.table(TABLE_SST)
+                .select("id,id_registro_sst,drive_pdf_id,link")
+                .eq("id_registro_sst", id_registro_sst)
+                .limit(1)
+                .execute()
+            )
+            if fallback_response.data and len(fallback_response.data) > 0:
+                return fallback_response.data[0]
+
+            return None
+        except SupabaseError:
+            raise
+        except Exception as exc:
+            raise SupabaseOperationError(
+                "Error consultando registro SST en Supabase"
+            ) from exc
+
+    def limpiar_documento_sst(self, id_registro_sst: int) -> bool:
+        """Clear drive_pdf_id and link in SST record."""
+        client = self._require_client()
+        payload = {
+            "drive_pdf_id": None,
+            "link": None,
+        }
+        try:
+            response = (
+                client.table(TABLE_SST)
+                .update(payload)
+                .eq("id", id_registro_sst)
+                .execute()
+            )
+            if response.data and len(response.data) > 0:
+                return True
+
+            fallback_response = (
+                client.table(TABLE_SST)
+                .update(payload)
+                .eq("id_registro_sst", id_registro_sst)
+                .execute()
+            )
+            if fallback_response.data and len(fallback_response.data) > 0:
+                return True
+
+            return False
+        except SupabaseError:
+            raise
+        except Exception as exc:
+            raise SupabaseOperationError(
+                "Error limpiando documento SST en Supabase"
+            ) from exc
+
     def _normalizar_rut(self, rut: str) -> str:
         return rut.replace(".", "").replace(" ", "").upper()
 

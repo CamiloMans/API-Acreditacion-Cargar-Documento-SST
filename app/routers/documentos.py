@@ -9,6 +9,7 @@ from app.models import SubirDocumentoRequest, SubirDocumentoResponse
 from app.services.drive_service import (
     ALLOWED_ROOT_FOLDER_ID,
     DriveApiError,
+    DriveDeleteError,
     DriveFileNotFoundError,
     DriveFolderOperationError,
     DriveInvalidFolderError,
@@ -69,19 +70,65 @@ async def subir_documento(request: SubirDocumentoRequest):
             nombre_persona=request.nombre_persona,
         )
 
+        registro_sst = supabase_service.obtener_registro_sst(request.id_registro_sst)
+        if not registro_sst:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"No se encontro registro SST con id_registro_sst={request.id_registro_sst}",
+            )
+
+        drive_pdf_id_anterior = (registro_sst.get("drive_pdf_id") or "").strip()
+        if drive_pdf_id_anterior:
+            eliminado = drive_service.eliminar_archivo(drive_pdf_id_anterior)
+            if eliminado:
+                logger.info(
+                    "Archivo previo eliminado id_registro_sst=%s drive_pdf_id_anterior=%s",
+                    request.id_registro_sst,
+                    drive_pdf_id_anterior,
+                )
+            else:
+                logger.info(
+                    "Archivo previo no existia (404), se continua id_registro_sst=%s drive_pdf_id_anterior=%s",
+                    request.id_registro_sst,
+                    drive_pdf_id_anterior,
+                )
+
         candidate_name = drive_service.build_final_filename(
             request.fecha_inicio,
             request.nombre_documento,
         )
         final_name = drive_service.resolve_non_colliding_name(folder_id_destino, candidate_name)
 
-        uploaded = drive_service.upload_pdf_bytes(
-            folder_id=folder_id_destino,
-            final_name=final_name,
-            file_bytes=file_bytes,
-        )
+        try:
+            uploaded = drive_service.upload_pdf_bytes(
+                folder_id=folder_id_destino,
+                final_name=final_name,
+                file_bytes=file_bytes,
+            )
+        except DriveUploadError:
+            # If previous file was removed and upload fails, clear DB references.
+            if drive_pdf_id_anterior:
+                try:
+                    supabase_service.limpiar_documento_sst(request.id_registro_sst)
+                    logger.warning(
+                        "Subida fallida tras borrar previo; SST limpiado id_registro_sst=%s",
+                        request.id_registro_sst,
+                    )
+                except SupabaseOperationError:
+                    logger.exception(
+                        "Subida fallida y no se pudo limpiar SST id_registro_sst=%s",
+                        request.id_registro_sst,
+                    )
+            raise
+
         file_id = uploaded["id"]
         link = f"https://drive.google.com/file/d/{file_id}/view?usp=drive_link"
+        logger.info(
+            "Nuevo archivo subido id_registro_sst=%s drive_pdf_id_anterior=%s drive_pdf_id_nuevo=%s",
+            request.id_registro_sst,
+            drive_pdf_id_anterior or None,
+            file_id,
+        )
 
         actualizado = supabase_service.actualizar_documento_sst(
             id_registro_sst=request.id_registro_sst,
@@ -127,6 +174,8 @@ async def subir_documento(request: SubirDocumentoRequest):
     except DrivePermissionError as exc:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
     except DriveFolderOperationError as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+    except DriveDeleteError as exc:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
     except DriveUploadError as exc:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc

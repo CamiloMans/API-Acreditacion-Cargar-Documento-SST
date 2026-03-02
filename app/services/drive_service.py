@@ -48,6 +48,10 @@ class DriveFolderOperationError(DriveApiError):
     """Raised when folder lookup/create operation fails."""
 
 
+class DriveDeleteError(DriveApiError):
+    """Raised when deleting an existing file fails."""
+
+
 class DriveService:
     """Service for Google Drive interactions."""
 
@@ -317,6 +321,33 @@ class DriveService:
             if status in [401, 403]:
                 raise DrivePermissionError("Sin permisos para subir archivo en la carpeta destino") from error
             raise DriveUploadError(f"Fallo la subida a Drive (status={status})") from error
+
+    def eliminar_archivo(self, file_id: str) -> bool:
+        """
+        Delete a file in Drive by ID.
+
+        Returns:
+            True when file is deleted.
+            False when file is already missing (404).
+        """
+        service = self.get_service()
+        try:
+            self._execute_with_retry(
+                service.files().delete(
+                    fileId=file_id,
+                    supportsAllDrives=True,
+                )
+            )
+            return True
+        except HttpError as error:
+            status = getattr(error.resp, "status", None)
+            if status == 404:
+                return False
+            if status in [401, 403]:
+                raise DrivePermissionError(
+                    "Sin permisos para eliminar archivo previo en Drive"
+                ) from error
+            raise DriveDeleteError(f"No se pudo eliminar archivo previo en Drive (status={status})") from error
 
 
 drive_service = DriveService()

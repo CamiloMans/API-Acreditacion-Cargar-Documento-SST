@@ -7,6 +7,7 @@ from app.main import app
 from app.routers import documentos as documentos_router
 from app.services.drive_service import (
     ALLOWED_ROOT_FOLDER_ID,
+    DriveDeleteError,
     DriveFileNotFoundError,
     DriveFolderOperationError,
     DriveInvalidFolderError,
@@ -39,6 +40,11 @@ def test_root_endpoint() -> None:
 
 def test_subir_documento_ok(monkeypatch) -> None:
     monkeypatch.setattr(drive_service, "is_descendant_of_root", lambda folder_id, root_id: True)
+    monkeypatch.setattr(
+        supabase_service,
+        "obtener_registro_sst",
+        lambda id_registro_sst: {"id": id_registro_sst, "drive_pdf_id": ""},
+    )
     monkeypatch.setattr(
         drive_service,
         "resolve_or_create_person_folder",
@@ -121,6 +127,11 @@ def test_subir_documento_folder_id_null_usa_root(monkeypatch) -> None:
         return True
 
     monkeypatch.setattr(drive_service, "is_descendant_of_root", _is_descendant)
+    monkeypatch.setattr(
+        supabase_service,
+        "obtener_registro_sst",
+        lambda id_registro_sst: {"id": id_registro_sst, "drive_pdf_id": ""},
+    )
     monkeypatch.setattr(
         drive_service,
         "resolve_or_create_person_folder",
@@ -323,6 +334,11 @@ def test_subir_documento_tamano_supera_limite(monkeypatch) -> None:
 def test_subir_documento_upload_error(monkeypatch) -> None:
     monkeypatch.setattr(drive_service, "is_descendant_of_root", lambda folder_id, root_id: True)
     monkeypatch.setattr(
+        supabase_service,
+        "obtener_registro_sst",
+        lambda id_registro_sst: {"id": id_registro_sst, "drive_pdf_id": ""},
+    )
+    monkeypatch.setattr(
         drive_service,
         "resolve_or_create_person_folder",
         lambda base_folder_id, nombre_persona: ("folder-persona-001", False),
@@ -359,6 +375,11 @@ def test_subir_documento_upload_error(monkeypatch) -> None:
 
 def test_subir_documento_error_resolviendo_carpeta_persona(monkeypatch) -> None:
     monkeypatch.setattr(drive_service, "is_descendant_of_root", lambda folder_id, root_id: True)
+    monkeypatch.setattr(
+        supabase_service,
+        "obtener_registro_sst",
+        lambda id_registro_sst: {"id": id_registro_sst, "drive_pdf_id": ""},
+    )
 
     def _raise_folder_error(base_folder_id: str, nombre_persona: str) -> tuple[str, bool]:
         raise DriveFolderOperationError("No se pudo crear carpeta en Drive (status=500)")
@@ -381,6 +402,11 @@ def test_subir_documento_error_resolviendo_carpeta_persona(monkeypatch) -> None:
 
 def test_subir_documento_falla_update_supabase(monkeypatch) -> None:
     monkeypatch.setattr(drive_service, "is_descendant_of_root", lambda folder_id, root_id: True)
+    monkeypatch.setattr(
+        supabase_service,
+        "obtener_registro_sst",
+        lambda id_registro_sst: {"id": id_registro_sst, "drive_pdf_id": ""},
+    )
     monkeypatch.setattr(
         drive_service,
         "resolve_or_create_person_folder",
@@ -429,6 +455,11 @@ def test_subir_documento_falla_update_supabase(monkeypatch) -> None:
 
 def test_subir_documento_persona_no_encontrada(monkeypatch) -> None:
     monkeypatch.setattr(drive_service, "is_descendant_of_root", lambda folder_id, root_id: True)
+    monkeypatch.setattr(
+        supabase_service,
+        "obtener_registro_sst",
+        lambda id_registro_sst: {"id": id_registro_sst, "drive_pdf_id": ""},
+    )
     monkeypatch.setattr(
         drive_service,
         "resolve_or_create_person_folder",
@@ -483,6 +514,11 @@ def test_subir_documento_persona_no_encontrada(monkeypatch) -> None:
 def test_subir_documento_error_supabase(monkeypatch) -> None:
     monkeypatch.setattr(drive_service, "is_descendant_of_root", lambda folder_id, root_id: True)
     monkeypatch.setattr(
+        supabase_service,
+        "obtener_registro_sst",
+        lambda id_registro_sst: {"id": id_registro_sst, "drive_pdf_id": ""},
+    )
+    monkeypatch.setattr(
         drive_service,
         "resolve_or_create_person_folder",
         lambda base_folder_id, nombre_persona: ("folder-persona-001", False),
@@ -526,6 +562,234 @@ def test_subir_documento_error_supabase(monkeypatch) -> None:
     }
     response = client.post("/documentos/subir", json=payload)
     assert response.status_code == 502
+
+
+def test_subir_documento_reemplaza_archivo_previo(monkeypatch) -> None:
+    monkeypatch.setattr(drive_service, "is_descendant_of_root", lambda folder_id, root_id: True)
+    monkeypatch.setattr(
+        supabase_service,
+        "obtener_registro_sst",
+        lambda id_registro_sst: {"id": id_registro_sst, "drive_pdf_id": "file-old-001"},
+    )
+    delete_calls = {"count": 0}
+
+    def _delete(file_id: str) -> bool:
+        delete_calls["count"] += 1
+        assert file_id == "file-old-001"
+        return True
+
+    monkeypatch.setattr(drive_service, "eliminar_archivo", _delete)
+    monkeypatch.setattr(
+        drive_service,
+        "resolve_or_create_person_folder",
+        lambda base_folder_id, nombre_persona: ("folder-persona-001", False),
+    )
+    monkeypatch.setattr(
+        drive_service,
+        "build_final_filename",
+        lambda fecha_inicio, nombre_documento: "20260301_documento.pdf",
+    )
+    monkeypatch.setattr(
+        drive_service,
+        "resolve_non_colliding_name",
+        lambda folder_id, candidate_name: candidate_name,
+    )
+    monkeypatch.setattr(
+        drive_service,
+        "upload_pdf_bytes",
+        lambda folder_id, final_name, file_bytes: {
+            "id": "file-new-002",
+            "name": final_name,
+            "size": str(len(file_bytes)),
+            "webViewLink": "https://drive.google.com/file/d/file-new-002/view",
+            "webContentLink": "https://drive.google.com/uc?id=file-new-002&export=download",
+            "createdTime": "2026-03-01T12:00:00.000Z",
+        },
+    )
+    monkeypatch.setattr(
+        supabase_service,
+        "actualizar_documento_sst",
+        lambda id_registro_sst, link, drive_pdf_id: drive_pdf_id == "file-new-002",
+    )
+    monkeypatch.setattr(
+        supabase_service,
+        "actualizar_sst_drive_folder_persona",
+        lambda rut_persona, folder_id: True,
+    )
+
+    payload = {
+        "id_registro_sst": 1003,
+        "documento_base64": _b64(b"%PDF-1.4 fake"),
+        "nombre_documento": "Contrato SST.pdf",
+        "fecha_inicio": "2026-03-01",
+        "folder_id": "folder-allowed",
+        "nombre_persona": "Juan Perez",
+        "rut_persona": "12.345.678-9",
+    }
+    response = client.post("/documentos/subir", json=payload)
+    assert response.status_code == 200
+    assert delete_calls["count"] == 1
+    assert response.json()["file_id"] == "file-new-002"
+
+
+def test_subir_documento_reemplazo_si_archivo_previo_404(monkeypatch) -> None:
+    monkeypatch.setattr(drive_service, "is_descendant_of_root", lambda folder_id, root_id: True)
+    monkeypatch.setattr(
+        supabase_service,
+        "obtener_registro_sst",
+        lambda id_registro_sst: {"id": id_registro_sst, "drive_pdf_id": "file-old-404"},
+    )
+    monkeypatch.setattr(drive_service, "eliminar_archivo", lambda file_id: False)
+    monkeypatch.setattr(
+        drive_service,
+        "resolve_or_create_person_folder",
+        lambda base_folder_id, nombre_persona: ("folder-persona-001", False),
+    )
+    monkeypatch.setattr(
+        drive_service,
+        "build_final_filename",
+        lambda fecha_inicio, nombre_documento: "20260301_documento.pdf",
+    )
+    monkeypatch.setattr(
+        drive_service,
+        "resolve_non_colliding_name",
+        lambda folder_id, candidate_name: candidate_name,
+    )
+    monkeypatch.setattr(
+        drive_service,
+        "upload_pdf_bytes",
+        lambda folder_id, final_name, file_bytes: {
+            "id": "file-new-003",
+            "name": final_name,
+            "size": str(len(file_bytes)),
+            "webViewLink": "https://drive.google.com/file/d/file-new-003/view",
+            "webContentLink": "https://drive.google.com/uc?id=file-new-003&export=download",
+            "createdTime": "2026-03-01T12:00:00.000Z",
+        },
+    )
+    monkeypatch.setattr(supabase_service, "actualizar_documento_sst", lambda *args, **kwargs: True)
+    monkeypatch.setattr(
+        supabase_service,
+        "actualizar_sst_drive_folder_persona",
+        lambda rut_persona, folder_id: True,
+    )
+
+    payload = {
+        "id_registro_sst": 1004,
+        "documento_base64": _b64(b"%PDF-1.4 fake"),
+        "nombre_documento": "Contrato SST.pdf",
+        "fecha_inicio": "2026-03-01",
+        "folder_id": "folder-allowed",
+        "nombre_persona": "Juan Perez",
+        "rut_persona": "12.345.678-9",
+    }
+    response = client.post("/documentos/subir", json=payload)
+    assert response.status_code == 200
+    assert response.json()["file_id"] == "file-new-003"
+
+
+def test_subir_documento_falla_eliminacion_previo_aborta(monkeypatch) -> None:
+    monkeypatch.setattr(drive_service, "is_descendant_of_root", lambda folder_id, root_id: True)
+    monkeypatch.setattr(
+        supabase_service,
+        "obtener_registro_sst",
+        lambda id_registro_sst: {"id": id_registro_sst, "drive_pdf_id": "file-old-err"},
+    )
+
+    def _delete_error(file_id: str) -> bool:
+        raise DriveDeleteError("No se pudo eliminar archivo previo en Drive (status=500)")
+
+    monkeypatch.setattr(drive_service, "eliminar_archivo", _delete_error)
+    monkeypatch.setattr(
+        drive_service,
+        "resolve_or_create_person_folder",
+        lambda base_folder_id, nombre_persona: ("folder-persona-001", False),
+    )
+
+    payload = {
+        "id_registro_sst": 1005,
+        "documento_base64": _b64(b"%PDF-1.4 fake"),
+        "nombre_documento": "Contrato SST.pdf",
+        "fecha_inicio": "2026-03-01",
+        "folder_id": "folder-allowed",
+        "nombre_persona": "Juan Perez",
+        "rut_persona": "12.345.678-9",
+    }
+    response = client.post("/documentos/subir", json=payload)
+    assert response.status_code == 502
+
+
+def test_subir_documento_limpia_bd_si_falla_subida_tras_borrado(monkeypatch) -> None:
+    monkeypatch.setattr(drive_service, "is_descendant_of_root", lambda folder_id, root_id: True)
+    monkeypatch.setattr(
+        supabase_service,
+        "obtener_registro_sst",
+        lambda id_registro_sst: {"id": id_registro_sst, "drive_pdf_id": "file-old-clean"},
+    )
+    monkeypatch.setattr(drive_service, "eliminar_archivo", lambda file_id: True)
+    monkeypatch.setattr(
+        drive_service,
+        "resolve_or_create_person_folder",
+        lambda base_folder_id, nombre_persona: ("folder-persona-001", False),
+    )
+    monkeypatch.setattr(
+        drive_service,
+        "build_final_filename",
+        lambda fecha_inicio, nombre_documento: "20260301_documento.pdf",
+    )
+    monkeypatch.setattr(
+        drive_service,
+        "resolve_non_colliding_name",
+        lambda folder_id, candidate_name: candidate_name,
+    )
+    monkeypatch.setattr(
+        drive_service,
+        "upload_pdf_bytes",
+        lambda folder_id, final_name, file_bytes: (_ for _ in ()).throw(DriveUploadError("Fallo la subida")),
+    )
+    cleaned = {"done": 0}
+
+    def _clean(id_registro_sst: int) -> bool:
+        cleaned["done"] += 1
+        assert id_registro_sst == 1006
+        return True
+
+    monkeypatch.setattr(supabase_service, "limpiar_documento_sst", _clean)
+
+    payload = {
+        "id_registro_sst": 1006,
+        "documento_base64": _b64(b"%PDF-1.4 fake"),
+        "nombre_documento": "Contrato SST.pdf",
+        "fecha_inicio": "2026-03-01",
+        "folder_id": "folder-allowed",
+        "nombre_persona": "Juan Perez",
+        "rut_persona": "12.345.678-9",
+    }
+    response = client.post("/documentos/subir", json=payload)
+    assert response.status_code == 502
+    assert cleaned["done"] == 1
+
+
+def test_subir_documento_registro_sst_no_encontrado(monkeypatch) -> None:
+    monkeypatch.setattr(drive_service, "is_descendant_of_root", lambda folder_id, root_id: True)
+    monkeypatch.setattr(
+        drive_service,
+        "resolve_or_create_person_folder",
+        lambda base_folder_id, nombre_persona: ("folder-persona-001", False),
+    )
+    monkeypatch.setattr(supabase_service, "obtener_registro_sst", lambda id_registro_sst: None)
+
+    payload = {
+        "id_registro_sst": 1007,
+        "documento_base64": _b64(b"%PDF-1.4 fake"),
+        "nombre_documento": "Contrato SST.pdf",
+        "fecha_inicio": "2026-03-01",
+        "folder_id": "folder-allowed",
+        "nombre_persona": "Juan Perez",
+        "rut_persona": "12.345.678-9",
+    }
+    response = client.post("/documentos/subir", json=payload)
+    assert response.status_code == 404
 
 
 def test_build_final_filename_from_date() -> None:
