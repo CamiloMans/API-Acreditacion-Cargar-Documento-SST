@@ -18,7 +18,7 @@ from app.services.drive_service import (
 
 logger = logging.getLogger(__name__)
 
-MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024
+MAX_FILE_SIZE_BYTES = 200 * 1024 * 1024
 
 router = APIRouter(prefix="/documentos", tags=["documentos"])
 

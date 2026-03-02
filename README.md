@@ -9,7 +9,7 @@ La API expone un endpoint publico `POST /documentos/subir` que:
 1. Recibe `documento_base64`, `nombre_documento`, `fecha_inicio`, `folder_id`.
 2. Valida que `nombre_documento` termine en `.pdf`.
 3. Valida que `fecha_inicio` sea ISO parseable.
-4. Limita el tamano del archivo a 25 MB.
+4. Limita el tamano del archivo a 200 MB.
 5. Valida que `folder_id` cuelgue de la carpeta permitida:
    `1n8njw20WyC-uylqiMOZULj5tnDZjRjjA`.
 6. Genera nombre final: `YYYYMMDD_nombredocumento.pdf`.
@@ -73,7 +73,7 @@ python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 - `422`: base64 invalido, fecha invalida, nombre sin `.pdf` o `folder_id` invalido.
 - `403`: `folder_id` fuera del arbol permitido o sin permisos.
 - `404`: carpeta no existe/no accesible.
-- `413`: archivo supera 25 MB.
+- `413`: archivo supera 200 MB.
 - `502`: fallo en Google Drive API al subir.
 
 ## Estructura
