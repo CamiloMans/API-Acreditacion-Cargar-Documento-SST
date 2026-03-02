@@ -57,20 +57,8 @@ class SupabaseService:
         }
 
         try:
-            response = self._update_sst_by_column(client, "id", id_registro_sst, payload)
-            if response.data and len(response.data) > 0:
-                return True
-
-            fallback_response = self._safe_update_sst_by_fallback_column(
-                client,
-                "id_registro_sst",
-                id_registro_sst,
-                payload,
-            )
-            if fallback_response is not None and fallback_response.data and len(fallback_response.data) > 0:
-                return True
-
-            return False
+            response = self._update_sst_by_id(client, id_registro_sst, payload)
+            return bool(response.data and len(response.data) > 0)
         except SupabaseError:
             raise
         except Exception as exc:
@@ -79,7 +67,7 @@ class SupabaseService:
             ) from exc
 
     def obtener_registro_sst(self, id_registro_sst: int) -> dict | None:
-        """Get SST record by id with fallback to id_registro_sst."""
+        """Get SST record by primary key id."""
         client = self._require_client()
         try:
             response = (
@@ -91,15 +79,6 @@ class SupabaseService:
             )
             if response.data and len(response.data) > 0:
                 return response.data[0]
-
-            fallback_response = self._safe_select_sst_by_fallback_column(
-                client,
-                "id_registro_sst",
-                id_registro_sst,
-            )
-            if fallback_response.data and len(fallback_response.data) > 0:
-                return fallback_response.data[0]
-
             return None
         except SupabaseError:
             raise
@@ -116,20 +95,8 @@ class SupabaseService:
             "link": None,
         }
         try:
-            response = self._update_sst_by_column(client, "id", id_registro_sst, payload)
-            if response.data and len(response.data) > 0:
-                return True
-
-            fallback_response = self._safe_update_sst_by_fallback_column(
-                client,
-                "id_registro_sst",
-                id_registro_sst,
-                payload,
-            )
-            if fallback_response is not None and fallback_response.data and len(fallback_response.data) > 0:
-                return True
-
-            return False
+            response = self._update_sst_by_id(client, id_registro_sst, payload)
+            return bool(response.data and len(response.data) > 0)
         except SupabaseError:
             raise
         except Exception as exc:
@@ -137,50 +104,13 @@ class SupabaseService:
                 "Error limpiando documento SST en Supabase"
             ) from exc
 
-    def _update_sst_by_column(self, client: Client, column: str, value: int, payload: dict):
+    def _update_sst_by_id(self, client: Client, id_registro_sst: int, payload: dict):
         return (
             client.table(TABLE_SST)
             .update(payload)
-            .eq(column, value)
+            .eq("id", id_registro_sst)
             .execute()
         )
-
-    def _safe_update_sst_by_fallback_column(
-        self,
-        client: Client,
-        column: str,
-        value: int,
-        payload: dict,
-    ):
-        try:
-            return self._update_sst_by_column(client, column, value, payload)
-        except Exception as exc:
-            logger.warning(
-                "Fallback update por columna '%s' no disponible o fallo: %s",
-                column,
-                exc,
-            )
-            return None
-
-    def _safe_select_sst_by_fallback_column(self, client: Client, column: str, value: int):
-        try:
-            return (
-                client.table(TABLE_SST)
-                .select("id,drive_pdf_id,link")
-                .eq(column, value)
-                .limit(1)
-                .execute()
-            )
-        except Exception as exc:
-            logger.warning(
-                "Fallback select por columna '%s' no disponible o fallo: %s",
-                column,
-                exc,
-            )
-            class _EmptyResponse:
-                data = []
-
-            return _EmptyResponse()
 
     def _normalizar_rut(self, rut: str) -> str:
         return rut.replace(".", "").replace(" ", "").upper()

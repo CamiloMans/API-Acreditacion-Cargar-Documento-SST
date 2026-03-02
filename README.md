@@ -27,7 +27,7 @@ La API expone un endpoint publico `POST /documentos/subir` que:
 15. Actualiza en Supabase la tabla `brg_acreditacion_persona_requerimiento_sst`:
    - `link`: `https://drive.google.com/file/d/{file_id}/view?usp=drive_link`
    - `drive_pdf_id`: `{file_id}`
-   por `id_registro_sst`.
+   filtrando por columna `id` usando el valor de `id_registro_sst`.
 
 ## Requisitos
 
