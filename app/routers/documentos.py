@@ -96,6 +96,7 @@ async def subir_documento(request: SubirDocumentoRequest):
         candidate_name = drive_service.build_final_filename(
             request.fecha_inicio,
             request.nombre_documento,
+            request.nombre_persona,
         )
         final_name = drive_service.resolve_non_colliding_name(folder_id_destino, candidate_name)
 

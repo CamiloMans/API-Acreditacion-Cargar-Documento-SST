@@ -53,7 +53,7 @@ def test_subir_documento_ok(monkeypatch) -> None:
     monkeypatch.setattr(
         drive_service,
         "build_final_filename",
-        lambda fecha_inicio, nombre_documento: "20260301_documento.pdf",
+        lambda fecha_inicio, nombre_documento, nombre_persona: "20260301_documento.pdf",
     )
     monkeypatch.setattr(
         drive_service,
@@ -140,7 +140,7 @@ def test_subir_documento_folder_id_null_usa_root(monkeypatch) -> None:
     monkeypatch.setattr(
         drive_service,
         "build_final_filename",
-        lambda fecha_inicio, nombre_documento: "20260301_documento.pdf",
+        lambda fecha_inicio, nombre_documento, nombre_persona: "20260301_documento.pdf",
     )
     monkeypatch.setattr(
         drive_service,
@@ -346,7 +346,7 @@ def test_subir_documento_upload_error(monkeypatch) -> None:
     monkeypatch.setattr(
         drive_service,
         "build_final_filename",
-        lambda fecha_inicio, nombre_documento: "20260301_documento.pdf",
+        lambda fecha_inicio, nombre_documento, nombre_persona: "20260301_documento.pdf",
     )
     monkeypatch.setattr(
         drive_service,
@@ -415,7 +415,7 @@ def test_subir_documento_falla_update_supabase(monkeypatch) -> None:
     monkeypatch.setattr(
         drive_service,
         "build_final_filename",
-        lambda fecha_inicio, nombre_documento: "20260301_documento.pdf",
+        lambda fecha_inicio, nombre_documento, nombre_persona: "20260301_documento.pdf",
     )
     monkeypatch.setattr(
         drive_service,
@@ -468,7 +468,7 @@ def test_subir_documento_persona_no_encontrada(monkeypatch) -> None:
     monkeypatch.setattr(
         drive_service,
         "build_final_filename",
-        lambda fecha_inicio, nombre_documento: "20260301_documento.pdf",
+        lambda fecha_inicio, nombre_documento, nombre_persona: "20260301_documento.pdf",
     )
     monkeypatch.setattr(
         drive_service,
@@ -526,7 +526,7 @@ def test_subir_documento_error_supabase(monkeypatch) -> None:
     monkeypatch.setattr(
         drive_service,
         "build_final_filename",
-        lambda fecha_inicio, nombre_documento: "20260301_documento.pdf",
+        lambda fecha_inicio, nombre_documento, nombre_persona: "20260301_documento.pdf",
     )
     monkeypatch.setattr(
         drive_service,
@@ -587,7 +587,7 @@ def test_subir_documento_reemplaza_archivo_previo(monkeypatch) -> None:
     monkeypatch.setattr(
         drive_service,
         "build_final_filename",
-        lambda fecha_inicio, nombre_documento: "20260301_documento.pdf",
+        lambda fecha_inicio, nombre_documento, nombre_persona: "20260301_documento.pdf",
     )
     monkeypatch.setattr(
         drive_service,
@@ -648,7 +648,7 @@ def test_subir_documento_reemplazo_si_archivo_previo_404(monkeypatch) -> None:
     monkeypatch.setattr(
         drive_service,
         "build_final_filename",
-        lambda fecha_inicio, nombre_documento: "20260301_documento.pdf",
+        lambda fecha_inicio, nombre_documento, nombre_persona: "20260301_documento.pdf",
     )
     monkeypatch.setattr(
         drive_service,
@@ -735,7 +735,7 @@ def test_subir_documento_limpia_bd_si_falla_subida_tras_borrado(monkeypatch) -> 
     monkeypatch.setattr(
         drive_service,
         "build_final_filename",
-        lambda fecha_inicio, nombre_documento: "20260301_documento.pdf",
+        lambda fecha_inicio, nombre_documento, nombre_persona: "20260301_documento.pdf",
     )
     monkeypatch.setattr(
         drive_service,
@@ -793,13 +793,21 @@ def test_subir_documento_registro_sst_no_encontrado(monkeypatch) -> None:
 
 
 def test_build_final_filename_from_date() -> None:
-    file_name = drive_service.build_final_filename("2026-03-01", "Contrato SST.pdf")
-    assert file_name == "20260301_contrato_sst.pdf"
+    file_name = drive_service.build_final_filename(
+        "2026-03-01",
+        "Contrato SST.pdf",
+        "Juan Perez",
+    )
+    assert file_name == "20260301_CONTRATO_SST_Juan_Perez.pdf"
 
 
 def test_build_final_filename_from_datetime() -> None:
-    file_name = drive_service.build_final_filename("2026-03-01T14:30:00-03:00", "Informe Final.PDF")
-    assert file_name == "20260301_informe_final.pdf"
+    file_name = drive_service.build_final_filename(
+        "2026-03-01T14:30:00-03:00",
+        "Informe Final.PDF",
+        "Camilo Mansilla Ulloa",
+    )
+    assert file_name == "20260301_INFORME_FINAL_Camilo_Mansilla_Ulloa.pdf"
 
 
 def test_resolve_non_colliding_name_adds_suffix(monkeypatch) -> None:
@@ -813,3 +821,4 @@ def test_resolve_non_colliding_name_adds_suffix(monkeypatch) -> None:
 
     final_name = drive_service.resolve_non_colliding_name("folder-allowed", "20260301_doc.pdf")
     assert final_name == "20260301_doc_1.pdf"
+

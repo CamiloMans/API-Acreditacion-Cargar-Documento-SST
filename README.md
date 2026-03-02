@@ -14,7 +14,9 @@ La API expone un endpoint publico `POST /documentos/subir` que:
 5. Si `folder_id` es null/vacio, usa la carpeta root permitida como base.
 6. Valida que la carpeta base cuelgue de la carpeta permitida:
    `1n8njw20WyC-uylqiMOZULj5tnDZjRjjA`.
-7. Genera nombre final: `YYYYMMDD_nombredocumento.pdf`.
+7. Genera nombre final: `YYYYMMDD_REQUERIMIENTO_NOMBRE_PERSONA.pdf`.
+   - `REQUERIMIENTO` se genera desde `nombre_documento` (sin `.pdf`) en mayusculas.
+   - `NOMBRE_PERSONA` se genera desde `nombre_persona`.
 8. Si el nombre ya existe, crea sufijo incremental (`_1`, `_2`, ...).
 9. Busca carpeta de persona por nombre bajo la carpeta base.
 10. Si no existe, crea carpeta con `nombre_persona`.
@@ -78,7 +80,7 @@ python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
   "ok": true,
   "id_registro_sst": 12345,
   "file_id": "1abcXYZ...",
-  "file_name": "20260301_contrato_sst.pdf",
+  "file_name": "20260301_CONTRATO_SST_Juan_Perez.pdf",
   "folder_id": "1n8njw20WyC-uylqiMOZULj5tnDZjRjjA",
   "folder_id_destino": "1personaFolder...",
   "carpeta_persona_creada": true,

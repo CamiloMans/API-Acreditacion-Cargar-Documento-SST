@@ -236,28 +236,40 @@ class DriveService:
         created_id = self.create_subfolder(base_folder_id, nombre_persona)
         return created_id, True
 
-    def build_final_filename(self, fecha_inicio: str, nombre_documento: str) -> str:
-        """Build final filename in format YYYYMMDD_documento.pdf."""
+    def _sanitize_filename_part(self, value: str) -> str:
+        """Normalize text to a safe filename component."""
+        normalized = unicodedata.normalize("NFKD", value.strip())
+        normalized = normalized.encode("ascii", "ignore").decode("ascii")
+        normalized = re.sub(r"\s+", "_", normalized)
+        normalized = re.sub(r"[^A-Za-z0-9_-]", "", normalized)
+        normalized = re.sub(r"_+", "_", normalized)
+        return normalized.strip("_")
+
+    def build_final_filename(
+        self,
+        fecha_inicio: str,
+        nombre_documento: str,
+        nombre_persona: str | None = None,
+    ) -> str:
+        """Build final filename in format YYYYMMDD_REQUERIMIENTO_NOMBRE_PERSONA.pdf."""
         dt = parse_iso_datetime(fecha_inicio)
         date_prefix = dt.strftime("%Y%m%d")
 
-        clean_name = nombre_documento.strip()
-        if clean_name.lower().endswith(".pdf"):
-            clean_name = clean_name[:-4]
+        raw_requerimiento = nombre_documento.strip()
+        if raw_requerimiento.lower().endswith(".pdf"):
+            raw_requerimiento = raw_requerimiento[:-4]
+        clean_requerimiento = self._sanitize_filename_part(raw_requerimiento).upper()
+        if not clean_requerimiento:
+            clean_requerimiento = "DOCUMENTO"
 
-        # Remove accents and normalize to a slug-like safe format.
-        clean_name = unicodedata.normalize("NFKD", clean_name)
-        clean_name = clean_name.encode("ascii", "ignore").decode("ascii")
-        clean_name = clean_name.lower()
-        clean_name = re.sub(r"\s+", "_", clean_name)
-        clean_name = re.sub(r"[^a-z0-9_-]", "", clean_name)
-        clean_name = re.sub(r"_+", "_", clean_name)
-        clean_name = clean_name.strip("_")
+        if nombre_persona:
+            clean_persona = self._sanitize_filename_part(nombre_persona)
+        else:
+            clean_persona = ""
+        if not clean_persona:
+            clean_persona = "persona"
 
-        if not clean_name:
-            clean_name = "documento"
-
-        return f"{date_prefix}_{clean_name}.pdf"
+        return f"{date_prefix}_{clean_requerimiento}_{clean_persona}.pdf"
 
     def _file_exists_in_folder(self, folder_id: str, file_name: str) -> bool:
         """Return True if a non-trashed file with file_name exists in folder_id."""
