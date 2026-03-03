@@ -11,22 +11,21 @@ La API expone un endpoint publico `POST /documentos/subir` que:
 2. Valida que `nombre_documento` termine en `.pdf`.
 3. Valida que `fecha_inicio` sea ISO parseable.
 4. Limita el tamano del archivo a 200 MB.
-5. Si `folder_id` es null/vacio, usa la carpeta root permitida como base.
-6. Valida que la carpeta base cuelgue de la carpeta permitida:
-   `1n8njw20WyC-uylqiMOZULj5tnDZjRjjA`.
-7. Genera nombre final: `YYYYMMDD_REQUERIMIENTO_NOMBRE_PERSONA.pdf`.
+5. Si envias `folder_id` y existe (y cuelga del root permitido), guarda el PDF ahi sin crear carpeta.
+6. Si `folder_id` enviado no existe, crea carpeta con `nombre_persona` bajo el root permitido
+   `1n8njw20WyC-uylqiMOZULj5tnDZjRjjA` y guarda ahi.
+7. Si `folder_id` es null/vacio, usa flujo de carpeta bajo root permitido (resolver/crear por `nombre_persona`).
+8. Genera nombre final: `YYYYMMDD_REQUERIMIENTO_NOMBRE_PERSONA.pdf`.
    - `REQUERIMIENTO` se genera desde `nombre_documento` (sin `.pdf`) en mayusculas.
    - `NOMBRE_PERSONA` se genera desde `nombre_persona`.
-8. Si el nombre ya existe, crea sufijo incremental (`_1`, `_2`, ...).
-9. Busca carpeta de persona por nombre bajo la carpeta base.
-10. Si no existe, crea carpeta con `nombre_persona`.
-11. Sube el PDF dentro de la carpeta de persona y devuelve metadatos + links de Drive.
-12. Si el registro SST ya tiene `drive_pdf_id`, elimina ese archivo en Drive antes de subir el nuevo.
+9. Si el nombre ya existe, crea sufijo incremental (`_1`, `_2`, ...).
+10. Sube el PDF en la carpeta destino y devuelve metadatos + links de Drive.
+11. Si el registro SST ya tiene `drive_pdf_id`, elimina ese archivo en Drive antes de subir el nuevo.
     - si eliminar devuelve 404, continua el flujo.
     - si eliminar falla por otro motivo, responde error y no sube el nuevo archivo.
-13. Si falla la subida tras borrar el previo, limpia `drive_pdf_id` y `link` en SST (`null`).
-14. Actualiza `dim_core_persona.sst_drive_folder_id` con el `folder_id` de destino usando `rut_persona`.
-15. Actualiza en Supabase la tabla `brg_acreditacion_persona_requerimiento_sst`:
+12. Si falla la subida tras borrar el previo, limpia `drive_pdf_id` y `link` en SST (`null`).
+13. Actualiza `dim_core_persona.sst_drive_folder_id` con el `folder_id` de destino usando `rut_persona`.
+14. Actualiza en Supabase la tabla `brg_acreditacion_persona_requerimiento_sst`:
    - `link`: `https://drive.google.com/file/d/{file_id}/view?usp=drive_link`
    - `drive_pdf_id`: `{file_id}`
    filtrando por columna `id` usando el valor de `id_registro_sst`.

@@ -59,7 +59,7 @@ def test_subir_documento_ok(monkeypatch) -> None:
         drive_service,
         "resolve_non_colliding_name",
         lambda folder_id, candidate_name: "20260301_documento_1.pdf"
-        if folder_id == "folder-persona-001"
+        if folder_id == "folder-base"
         else (_ for _ in ()).throw(AssertionError("folder_id inesperado")),
     )
     monkeypatch.setattr(
@@ -73,7 +73,7 @@ def test_subir_documento_ok(monkeypatch) -> None:
             "webContentLink": "https://drive.google.com/uc?id=file-123&export=download",
             "createdTime": "2026-03-01T12:00:00.000Z",
         }
-        if folder_id == "folder-persona-001"
+        if folder_id == "folder-base"
         else (_ for _ in ()).throw(AssertionError("folder_id upload inesperado")),
     )
     update_calls = {"count": 0}
@@ -89,7 +89,7 @@ def test_subir_documento_ok(monkeypatch) -> None:
     monkeypatch.setattr(
         supabase_service,
         "actualizar_sst_drive_folder_persona",
-        lambda rut_persona, folder_id: rut_persona == "12.345.678-9" and folder_id == "folder-persona-001",
+        lambda rut_persona, folder_id: rut_persona == "12.345.678-9" and folder_id == "folder-base",
     )
 
     payload = {
@@ -111,7 +111,7 @@ def test_subir_documento_ok(monkeypatch) -> None:
     assert body["file_id"] == "file-123"
     assert body["file_name"] == "20260301_documento_1.pdf"
     assert body["folder_id"] == "folder-base"
-    assert body["folder_id_destino"] == "folder-persona-001"
+    assert body["folder_id_destino"] == "folder-base"
     assert body["carpeta_persona_creada"] is False
     assert body["persona_actualizada"] is True
     assert body["link"] == "https://drive.google.com/file/d/file-123/view?usp=drive_link"
@@ -185,6 +185,80 @@ def test_subir_documento_folder_id_null_usa_root(monkeypatch) -> None:
     body = response.json()
     assert body["folder_id"] == ALLOWED_ROOT_FOLDER_ID
     assert body["folder_id_destino"] == ALLOWED_ROOT_FOLDER_ID
+
+
+def test_subir_documento_folder_id_no_encontrado_crea_carpeta_persona(monkeypatch) -> None:
+    def _is_descendant(folder_id: str, root_id: str) -> bool:
+        if folder_id == "folder-missing":
+            raise DriveFileNotFoundError("No existe el recurso en Drive: folder-missing")
+        return True
+
+    monkeypatch.setattr(drive_service, "is_descendant_of_root", _is_descendant)
+    monkeypatch.setattr(
+        drive_service,
+        "create_subfolder",
+        lambda parent_folder_id, folder_name: "folder-persona-new"
+        if parent_folder_id == ALLOWED_ROOT_FOLDER_ID and folder_name == "Camilo Mansilla Ulloa"
+        else (_ for _ in ()).throw(AssertionError("create_subfolder inesperado")),
+    )
+    monkeypatch.setattr(
+        supabase_service,
+        "obtener_registro_sst",
+        lambda id_registro_sst: {"id": id_registro_sst, "drive_pdf_id": ""},
+    )
+    monkeypatch.setattr(
+        drive_service,
+        "build_final_filename",
+        lambda fecha_inicio, nombre_documento, nombre_persona: "20260301_DOCUMENTO_Camilo_Mansilla_Ulloa.pdf",
+    )
+    monkeypatch.setattr(
+        drive_service,
+        "resolve_non_colliding_name",
+        lambda folder_id, candidate_name: candidate_name
+        if folder_id == "folder-persona-new"
+        else (_ for _ in ()).throw(AssertionError("resolve_non_colliding_name folder inesperado")),
+    )
+    monkeypatch.setattr(
+        drive_service,
+        "upload_pdf_bytes",
+        lambda folder_id, final_name, file_bytes: {
+            "id": "file-new-folder",
+            "name": final_name,
+            "size": str(len(file_bytes)),
+            "webViewLink": "https://drive.google.com/file/d/file-new-folder/view",
+            "webContentLink": "https://drive.google.com/uc?id=file-new-folder&export=download",
+            "createdTime": "2026-03-01T12:00:00.000Z",
+        }
+        if folder_id == "folder-persona-new"
+        else (_ for _ in ()).throw(AssertionError("upload folder inesperado")),
+    )
+    monkeypatch.setattr(
+        supabase_service,
+        "actualizar_documento_sst",
+        lambda id_registro_sst, link, drive_pdf_id: True,
+    )
+    monkeypatch.setattr(
+        supabase_service,
+        "actualizar_sst_drive_folder_persona",
+        lambda rut_persona, folder_id: True,
+    )
+
+    payload = {
+        "id_registro_sst": 1009,
+        "documento_base64": _b64(b"%PDF-1.4 fake"),
+        "nombre_documento": "Documento.pdf",
+        "fecha_inicio": "2026-03-01",
+        "folder_id": "folder-missing",
+        "nombre_persona": "Camilo Mansilla Ulloa",
+        "rut_persona": "17.720.312-2",
+    }
+
+    response = client.post("/documentos/subir", json=payload)
+    assert response.status_code == 200
+    body = response.json()
+    assert body["folder_id"] == ALLOWED_ROOT_FOLDER_ID
+    assert body["folder_id_destino"] == "folder-persona-new"
+    assert body["carpeta_persona_creada"] is True
 
 
 def test_subir_documento_base64_invalido() -> None:
@@ -391,7 +465,7 @@ def test_subir_documento_error_resolviendo_carpeta_persona(monkeypatch) -> None:
         "documento_base64": _b64(b"%PDF-1.4 fake"),
         "nombre_documento": "Contrato SST.pdf",
         "fecha_inicio": "2026-03-01",
-        "folder_id": "folder-allowed",
+        "folder_id": None,
         "nombre_persona": "Juan Perez",
         "rut_persona": "12.345.678-9",
     }

@@ -67,17 +67,34 @@ async def subir_documento(request: SubirDocumentoRequest):
 
     try:
         base_folder_id = request.folder_id or ALLOWED_ROOT_FOLDER_ID
+        carpeta_persona_creada = False
 
-        if not drive_service.is_descendant_of_root(base_folder_id, ALLOWED_ROOT_FOLDER_ID):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="folder_id fuera de la carpeta permitida",
+        if request.folder_id:
+            try:
+                if not drive_service.is_descendant_of_root(base_folder_id, ALLOWED_ROOT_FOLDER_ID):
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="folder_id fuera de la carpeta permitida",
+                    )
+                folder_id_destino = base_folder_id
+            except DriveFileNotFoundError:
+                # If sent folder_id does not exist, create a new person folder under allowed root.
+                folder_id_destino = drive_service.create_subfolder(
+                    ALLOWED_ROOT_FOLDER_ID,
+                    request.nombre_persona,
+                )
+                base_folder_id = ALLOWED_ROOT_FOLDER_ID
+                carpeta_persona_creada = True
+        else:
+            if not drive_service.is_descendant_of_root(base_folder_id, ALLOWED_ROOT_FOLDER_ID):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="folder_id fuera de la carpeta permitida",
+                )
+            folder_id_destino, carpeta_persona_creada = drive_service.resolve_or_create_person_folder(
+                base_folder_id=base_folder_id,
+                nombre_persona=request.nombre_persona,
             )
-
-        folder_id_destino, carpeta_persona_creada = drive_service.resolve_or_create_person_folder(
-            base_folder_id=base_folder_id,
-            nombre_persona=request.nombre_persona,
-        )
 
         registro_sst = supabase_service.obtener_registro_sst(request.id_registro_sst)
         if not registro_sst:
