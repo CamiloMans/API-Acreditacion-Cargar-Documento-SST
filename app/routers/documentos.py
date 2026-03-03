@@ -45,6 +45,15 @@ def _decode_base64_document(documento_base64: str) -> bytes:
         ) from exc
 
 
+def _normalize_drive_pdf_id(value: object) -> str:
+    """Normalize drive_pdf_id from DB to a safe string."""
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value.strip()
+    return str(value).strip()
+
+
 @router.post("/subir", response_model=SubirDocumentoResponse)
 async def subir_documento(request: SubirDocumentoRequest):
     """Upload a PDF document to Google Drive."""
@@ -77,7 +86,7 @@ async def subir_documento(request: SubirDocumentoRequest):
                 detail=f"No se encontro registro SST con id_registro_sst={request.id_registro_sst}",
             )
 
-        drive_pdf_id_anterior = (registro_sst.get("drive_pdf_id") or "").strip()
+        drive_pdf_id_anterior = _normalize_drive_pdf_id(registro_sst.get("drive_pdf_id"))
         if drive_pdf_id_anterior:
             eliminado = drive_service.eliminar_archivo(drive_pdf_id_anterior)
             if eliminado:
@@ -187,3 +196,14 @@ async def subir_documento(request: SubirDocumentoRequest):
     except DriveApiError as exc:
         logger.exception("Drive API error while uploading document")
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+    except HTTPException:
+        raise
+    except Exception as exc:  # pragma: no cover - safety net for unexpected runtime issues
+        logger.exception(
+            "Error no controlado en /documentos/subir id_registro_sst=%s",
+            request.id_registro_sst,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error interno al procesar el documento",
+        ) from exc

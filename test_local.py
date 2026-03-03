@@ -792,6 +792,66 @@ def test_subir_documento_registro_sst_no_encontrado(monkeypatch) -> None:
     assert response.status_code == 404
 
 
+def test_subir_documento_drive_pdf_id_no_string_no_rompe(monkeypatch) -> None:
+    monkeypatch.setattr(drive_service, "is_descendant_of_root", lambda folder_id, root_id: True)
+    monkeypatch.setattr(
+        supabase_service,
+        "obtener_registro_sst",
+        lambda id_registro_sst: {"id": id_registro_sst, "drive_pdf_id": 12345},
+    )
+    monkeypatch.setattr(drive_service, "eliminar_archivo", lambda file_id: file_id == "12345")
+    monkeypatch.setattr(
+        drive_service,
+        "resolve_or_create_person_folder",
+        lambda base_folder_id, nombre_persona: ("folder-persona-001", False),
+    )
+    monkeypatch.setattr(
+        drive_service,
+        "build_final_filename",
+        lambda fecha_inicio, nombre_documento, nombre_persona: "20260301_CPA_Camilo_Mansilla_Ulloa.pdf",
+    )
+    monkeypatch.setattr(
+        drive_service,
+        "resolve_non_colliding_name",
+        lambda folder_id, candidate_name: candidate_name,
+    )
+    monkeypatch.setattr(
+        drive_service,
+        "upload_pdf_bytes",
+        lambda folder_id, final_name, file_bytes: {
+            "id": "file-999",
+            "name": final_name,
+            "size": str(len(file_bytes)),
+            "webViewLink": "https://drive.google.com/file/d/file-999/view",
+            "webContentLink": "https://drive.google.com/uc?id=file-999&export=download",
+            "createdTime": "2026-03-07T12:00:00.000Z",
+        },
+    )
+    monkeypatch.setattr(
+        supabase_service,
+        "actualizar_documento_sst",
+        lambda id_registro_sst, link, drive_pdf_id: True,
+    )
+    monkeypatch.setattr(
+        supabase_service,
+        "actualizar_sst_drive_folder_persona",
+        lambda rut_persona, folder_id: True,
+    )
+
+    payload = {
+        "id_registro_sst": 1008,
+        "documento_base64": _b64(b"%PDF-1.4 fake"),
+        "nombre_documento": "C.P.A.pdf",
+        "fecha_inicio": "2026-03-07",
+        "folder_id": "folder-allowed",
+        "nombre_persona": "Camilo Mansilla Ulloa",
+        "rut_persona": "17.720.312-2",
+    }
+    response = client.post("/documentos/subir", json=payload)
+    assert response.status_code == 200
+    assert response.json()["file_id"] == "file-999"
+
+
 def test_build_final_filename_from_date() -> None:
     file_name = drive_service.build_final_filename(
         "2026-03-01",
