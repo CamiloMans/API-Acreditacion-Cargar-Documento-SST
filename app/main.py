@@ -29,6 +29,9 @@ app.add_middleware(
 )
 
 app.include_router(documentos.router)
+# Compatibilidad con el proxy legacy del frontend:
+# /api/acreditacion/documentos/subir -> /documentos/subir
+app.include_router(documentos.router, prefix="/api/acreditacion", include_in_schema=False)
 
 
 @app.get("/")
@@ -41,6 +44,7 @@ async def root():
             "descripcion": "API para subir documentos PDF a Google Drive desde base64.",
             "endpoints": {
                 "subir_documento": "/documentos/subir",
+                "subir_documento_legacy_proxy": "/api/acreditacion/documentos/subir",
                 "docs": "/docs",
                 "health": "/health",
             },
